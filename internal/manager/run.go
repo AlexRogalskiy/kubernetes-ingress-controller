@@ -55,10 +55,18 @@ func Run(ctx context.Context, c *Config, diagnostic util.ConfigDumpDiagnostic) e
 	}
 
 	setupLog.Info("configuring and building the controller manager")
-	controllerOpts := setupControllerOptions(setupLog, c, scheme)
+	controllerOpts, err := setupControllerOptions(setupLog, c, scheme)
+	if err != nil {
+		return fmt.Errorf("unable to setup controller options: %w", err)
+	}
 	mgr, err := ctrl.NewManager(kubeconfig, controllerOpts)
 	if err != nil {
 		return fmt.Errorf("unable to start controller manager: %w", err)
+	}
+
+	setupLog.Info("Starting Admission Server")
+	if err := setupAdmissionServer(ctx, c, mgr.GetClient()); err != nil {
+		return err
 	}
 
 	setupLog.Info("Starting Proxy Cache Server")
