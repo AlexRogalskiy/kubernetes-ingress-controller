@@ -111,56 +111,39 @@ func TestValidationWebhook(t *testing.T) {
 		}
 	}()
 
-	fail := admregv1.Fail
-	none := admregv1.SideEffectClassNone
-	webhook, err := env.Cluster().Client().AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(ctx,
-		&admregv1.ValidatingWebhookConfiguration{
-			TypeMeta:   metav1.TypeMeta{APIVersion: "admissionregistration.k8s.io/v1", Kind: "ValidatingWebhookConfiguration"},
-			ObjectMeta: metav1.ObjectMeta{Name: "kong-validations"},
-			Webhooks: []admregv1.ValidatingWebhook{
-				{
-					Name:                    "validations.kong.konghq.com",
-					FailurePolicy:           &fail,
-					SideEffects:             &none,
-					AdmissionReviewVersions: []string{"v1beta1", "v1"},
-					Rules: []admregv1.RuleWithOperations{
-						{
-							Rule: admregv1.Rule{
-								APIGroups:   []string{""},
-								APIVersions: []string{"v1"},
-								Resources:   []string{"secrets"},
-							},
-							Operations: []admregv1.OperationType{admregv1.Update},
-						},
-						{
-							Rule: admregv1.Rule{
-								APIGroups:   []string{"configuration.konghq.com"},
-								APIVersions: []string{"v1"},
-								Resources:   []string{"kongconsumers"},
-							},
-							Operations: []admregv1.OperationType{admregv1.Create, admregv1.Update},
-						},
-					},
-					ClientConfig: admregv1.WebhookClientConfig{
-						Service:  &admregv1.ServiceReference{Namespace: controllerNamespace, Name: webhookSvcName},
-						CABundle: []byte(admissionWebhookCert),
-					},
+	closer, err = ensureAdmissionRegistration(
+		"kong-validations",
+		[]admregv1.RuleWithOperations{
+			{
+				Rule: admregv1.Rule{
+					APIGroups:   []string{""},
+					APIVersions: []string{"v1"},
+					Resources:   []string{"secrets"},
 				},
+				Operations: []admregv1.OperationType{admregv1.Update},
 			},
-		}, metav1.CreateOptions{})
-	require.NoError(t, err, "creating webhook config")
-	require.Eventually(t, func() bool {
-		_, err := net.DialTimeout("tcp", "172.17.0.1:49023", 1*time.Second)
-		return err == nil
-	}, ingressWait, waitTick, "waiting for the admission service to be up")
+			{
+				Rule: admregv1.Rule{
+					APIGroups:   []string{"configuration.konghq.com"},
+					APIVersions: []string{"v1"},
+					Resources:   []string{"kongconsumers"},
+				},
+				Operations: []admregv1.OperationType{admregv1.Create, admregv1.Update},
+			},
+			{
+				Rule: admregv1.Rule{
+					APIGroups:   []string{"gateway.networking.k8s.io"},
+					APIVersions: []string{"v1alpha2"},
+					Resources:   []string{"gateways"},
+				},
+				Operations: []admregv1.OperationType{admregv1.Create, admregv1.Update},
+			},
+		},
+	)
+	assert.NoError(t, err, "creating webhook config")
+	defer closer()
 
-	defer func() {
-		if err := env.Cluster().Client().AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(ctx, webhook.Name, metav1.DeleteOptions{}); err != nil {
-			if !errors.IsNotFound(err) {
-				assert.NoError(t, err)
-			}
-		}
-	}()
+	waitForWebhookService(t)
 
 	// TODO: flakes were occurring in this test because proxy readiness isn't a consistent gate mechanism
 	//       by which to determine readiness for the webhook validation tests. We will follow up on this by
