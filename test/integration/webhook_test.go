@@ -619,4 +619,138 @@ func TestValidationWebhook(t *testing.T) {
 	require.NoError(t, kongClient.ConfigurationV1().KongConsumers(ns.Name).Delete(ctx, validConsumerLinkedToInvalidCredentials.Name, metav1.DeleteOptions{}))
 	_, err = env.Cluster().Client().CoreV1().Secrets(ns.Name).Update(ctx, validCredential, metav1.UpdateOptions{})
 	require.NoError(t, err)
+
+	t.Log("verifying that a JWT credential which has keys with missing values fails validation")
+	invalidJWTName := uuid.NewString()
+	invalidJWT := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: invalidJWTName,
+		},
+		StringData: map[string]string{
+			"kongCredType":   "jwt",
+			"algorithm":      "RS256",
+			"key":            "",
+			"rsa_public_key": "",
+			"secret":         "",
+		},
+	}
+	_, err = env.Cluster().Client().CoreV1().Secrets(ns.Name).Create(ctx, invalidJWT, metav1.CreateOptions{})
+	require.NoError(t, err)
+	jwtConsumer := &kongv1.KongConsumer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: uuid.NewString(),
+			Annotations: map[string]string{
+				annotations.IngressClassKey: ingressClass,
+			},
+		},
+		Username: "bad-jwt-consumer",
+		CustomID: uuid.NewString(),
+		Credentials: []string{
+			invalidJWTName,
+		},
+	}
+	_, err = kongClient.ConfigurationV1().KongConsumers(ns.Name).Create(ctx, jwtConsumer, metav1.CreateOptions{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "some fields were invalid due to missing data: rsa_public_key, key, secret")
+}
+
+func ensureWebhookService() (func() error, error) {
+	validationsService, err := env.Cluster().Client().CoreV1().Services(controllerNamespace).Create(ctx, &corev1.Service{
+		TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "Service"},
+		ObjectMeta: metav1.ObjectMeta{Name: webhookSvcName},
+		Spec: corev1.ServiceSpec{
+			Type: corev1.ServiceTypeClusterIP,
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "default",
+					Port:       443,
+					TargetPort: intstr.FromInt(49023),
+				},
+			},
+		},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("creating webhook service: %w", err)
+	}
+
+	nodeName := "aaaa"
+	endpoints, err := env.Cluster().Client().CoreV1().Endpoints(controllerNamespace).Create(ctx, &corev1.Endpoints{
+		TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "Endpoints"},
+		ObjectMeta: metav1.ObjectMeta{Name: webhookSvcName},
+		Subsets: []corev1.EndpointSubset{
+			{
+				Addresses: []corev1.EndpointAddress{
+					{
+						IP:       "172.17.0.1",
+						NodeName: &nodeName,
+					},
+				},
+				Ports: []corev1.EndpointPort{
+					{
+						Name:     "default",
+						Port:     49023,
+						Protocol: corev1.ProtocolTCP,
+					},
+				},
+			},
+		},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("creating webhook endpoints: %w", err)
+	}
+
+	closer := func() error {
+		if err := env.Cluster().Client().CoreV1().Services(controllerNamespace).Delete(ctx, validationsService.Name, metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+
+		if err := env.Cluster().Client().CoreV1().Endpoints(controllerNamespace).Delete(ctx, endpoints.Name, metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	return closer, nil
+}
+
+func waitForWebhookService(t *testing.T) {
+	require.Eventually(t, func() bool {
+		_, err := net.DialTimeout("tcp", "172.17.0.1:49023", 1*time.Second)
+		return err == nil
+	}, ingressWait, waitTick, "waiting for the admission service to be up")
+}
+
+func ensureAdmissionRegistration(configResourceName string, rules []admregv1.RuleWithOperations) (func() error, error) {
+	fail := admregv1.Fail
+	none := admregv1.SideEffectClassNone
+	webhook, err := env.Cluster().Client().AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(ctx,
+		&admregv1.ValidatingWebhookConfiguration{
+			TypeMeta:   metav1.TypeMeta{APIVersion: "admissionregistration.k8s.io/v1", Kind: "ValidatingWebhookConfiguration"},
+			ObjectMeta: metav1.ObjectMeta{Name: "kong-validations"},
+			Webhooks: []admregv1.ValidatingWebhook{
+				{
+					Name:                    "validations.kong.konghq.com",
+					FailurePolicy:           &fail,
+					SideEffects:             &none,
+					AdmissionReviewVersions: []string{"v1beta1", "v1"},
+					Rules:                   rules,
+					ClientConfig: admregv1.WebhookClientConfig{
+						Service:  &admregv1.ServiceReference{Namespace: controllerNamespace, Name: webhookSvcName},
+						CABundle: []byte(kongSystemServiceCert),
+					},
+				},
+			},
+		}, metav1.CreateOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	closer := func() error {
+		if err := env.Cluster().Client().AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(ctx, webhook.Name, metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	return closer, nil
 }
