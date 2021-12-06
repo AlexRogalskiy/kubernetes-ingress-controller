@@ -6,6 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/kong/kubernetes-ingress-controller/v2/internal/metrics"
 	"github.com/kong/kubernetes-ingress-controller/v2/internal/sendconfig"
@@ -63,6 +64,9 @@ type Proxy interface {
 	// IsReady returns true if the proxy is considered ready.
 	// A ready proxy has configuration available and can handle traffic.
 	IsReady() bool
+
+	manager.Runnable
+	manager.LeaderElectionRunnable
 }
 
 // KongUpdater is a type of function that describes how to provide updates to the Kong Admin API
