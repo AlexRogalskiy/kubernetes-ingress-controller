@@ -44,13 +44,25 @@ func setupLoggers(c *Config) (logrus.FieldLogger, logr.Logger, error) {
 	return deprecatedLogger, logger, nil
 }
 
-func setupControllerOptions(logger logr.Logger, c *Config, scheme *runtime.Scheme) (ctrl.Options, error) {
+func setupControllerOptions(logger logr.Logger, c *Config, scheme *runtime.Scheme,
+	dbmode string) (ctrl.Options, error) {
+
+	var leaderElection bool
+	if dbmode == "off" {
+		logger.Info("DB-less mode detected, disabling leader election")
+		leaderElection = false
+	} else {
+		logger.Info("Database mode detected, enabling leader election")
+		leaderElection = true
+	}
+
+	// configure the general controller options
 	controllerOpts := ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     c.MetricsAddr,
 		Port:                   9443,
 		HealthProbeBindAddress: c.ProbeAddr,
-		LeaderElection:         c.EnableLeaderElection,
+		LeaderElection:         leaderElection,
 		LeaderElectionID:       c.LeaderElectionID,
 		SyncPeriod:             &c.SyncPeriod,
 	}
