@@ -84,6 +84,10 @@ func setupControllerOptions(logger logr.Logger, c *Config, scheme *runtime.Schem
 		controllerOpts.NewCache = cache.MultiNamespacedCacheBuilder(c.WatchNamespaces)
 	}
 
+	if len(c.LeaderElectionNamespace) > 0 {
+		controllerOpts.LeaderElectionNamespace = c.LeaderElectionNamespace
+	}
+
 	return controllerOpts, nil
 }
 
