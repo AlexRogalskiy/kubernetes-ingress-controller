@@ -46,6 +46,10 @@ func setupLoggers(c *Config) (logrus.FieldLogger, logr.Logger, error) {
 	return deprecatedLogger, logger, nil
 }
 
+// The error return here is mostly used by Gateway API, which is not included in 2.0.7
+// However, other functions that use this function included in 2.0.7 use the new signature,
+// so this lint is disabled to simplify the merge
+//nolint:unparam
 func setupControllerOptions(logger logr.Logger, c *Config, scheme *runtime.Scheme,
 	dbmode string) (ctrl.Options, error) {
 
