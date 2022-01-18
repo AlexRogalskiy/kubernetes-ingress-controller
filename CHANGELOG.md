@@ -1,5 +1,6 @@
 # Table of Contents
 
+ - [2.0.7](#207)
  - [2.0.6](#206)
  - [2.0.5](#205)
  - [2.0.4](#204)
@@ -38,32 +39,9 @@
  - [0.0.5](#005)
  - [0.0.4 and prior](#004-and-prior)
 
-## [2.1.0]
+## [2.0.7]
 
 > Release date: TBD
-
-**Note:** the admission webhook updates originally released in [2.0.6](#206)
-are _not_ applied automatically by the upgrade. If you set one up previously,
-you should edit it (`kubectl edit validatingwebhookconfiguration
-kong-validations` and add `kongclusterplugins` under the `resources` block for
-the `configuration.konghq.com` API group.
-
-#### Added
-
-- [Feature Gates][k8s-fg] have been added to the controller manager in order to
-  enable alpha/beta/experimental features and provide documentation about those
-  features and their maturity over time. For more information see the
-  [KIC Feature Gates Documentation][kic-fg].
-  [#1970](https://github.com/Kong/kubernetes-ingress-controller/pull/1970)
-- a Gateway controller has been added in support of [Gateway APIs][gwapi].
-  This controller is foundational and doesn't serve any end-user purpose alone.
-  [#1945](https://github.com/Kong/kubernetes-ingress-controller/issues/1945)
-- Anonymous reports now use TLS instead of UDP.
-  [#2089](https://github.com/Kong/kubernetes-ingress-controller/pull/2089)
-
-[k8s-fg]:https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/
-[kic-fg]:https://github.com/Kong/kubernetes-ingress-controller/blob/main/FEATURE_GATES.md
-[gwapi]:https://github.com/kubernetes-sigs/gateway-api
 
 #### Fixed
 
@@ -71,6 +49,18 @@ the `configuration.konghq.com` API group.
   credentials secrets on update of secrets, and on create or update of
   KongConsumers.
   [#729](https://github.com/Kong/kubernetes-ingress-controller/issues/729)
+- Fixed incorrect leader election behavior. Previously, non-leader instances
+  would still attempt to update Kong configuration, but would not scan for
+  Kubernetes resources to translate into Kong configuration.
+  [#2053](https://github.com/Kong/kubernetes-ingress-controller/issues/2053)
+- Failures to set up the status update subsystem no longer block the update
+  loop.
+  [#2005](https://github.com/Kong/kubernetes-ingress-controller/issues/2005)
+
+#### Under the hood
+
+- Anonymous reports now use TLS instead of UDP.
+  [#2089](https://github.com/Kong/kubernetes-ingress-controller/pull/2089)
 
 ## [2.0.6]
 
@@ -91,9 +81,6 @@ under the `resources` block for the `configuration.konghq.com` API group.
   [#2012](https://github.com/Kong/kubernetes-ingress-controller/issues/2012)
 - The template admission webhook configuration now includes KongClusterPlugins.
   [#2000](https://github.com/Kong/kubernetes-ingress-controller/issues/2000)
-- Failures to set up the status update subsystem no longer block the update
-  loop.
-  [#2005](https://github.com/Kong/kubernetes-ingress-controller/issues/2005)
 
 #### Under the hood
 
@@ -1453,7 +1440,9 @@ Please read the changelog and test in your environment.
  - The initial versions  were rapildy iterated to deliver
    a working ingress controller.
 
+[2.1.1]: https://github.com/kong/kubernetes-ingress-controller/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/kong/kubernetes-ingress-controller/compare/v2.0.6...v2.1.0
+[2.0.7]: https://github.com/kong/kubernetes-ingress-controller/compare/v2.0.6...v2.0.7
 [2.0.6]: https://github.com/kong/kubernetes-ingress-controller/compare/v2.0.5...v2.0.6
 [2.0.5]: https://github.com/kong/kubernetes-ingress-controller/compare/v2.0.4...v2.0.5
 [2.0.4]: https://github.com/kong/kubernetes-ingress-controller/compare/v2.0.3...v2.0.4
