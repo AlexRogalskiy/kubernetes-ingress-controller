@@ -1,6 +1,7 @@
 # Table of Contents
 
- - [1.3.3](#133---20211001)
+ - [1.3.4](#134)
+ - [1.3.3](#133)
  - [1.3.2](#132---20210812)
  - [1.3.1](#131---20210603)
  - [1.3.0](#130---20210527)
@@ -30,6 +31,13 @@
  - [0.1.0](#010---20180817)
  - [0.0.5](#005---20180602)
  - [0.0.4 and prior](#004-and-prior)
+
+## [1.3.4]
+
+#### Under the hood
+
+- Anonymous reports now use TLS instead of UDP.
+  [#2089](https://github.com/Kong/kubernetes-ingress-controller/pull/2089)
 
 ## [1.3.3]
 
@@ -1054,6 +1062,7 @@ Please read the changelog and test in your environment.
  - The initial versions  were rapildy iterated to deliver
    a working ingress controller.
 
+[1.3.4]: https://github.com/kong/kubernetes-ingress-controller/compare/1.3.3...1.3.4
 [1.3.3]: https://github.com/kong/kubernetes-ingress-controller/compare/1.3.2...1.3.3
 [1.3.2]: https://github.com/kong/kubernetes-ingress-controller/compare/1.3.1...1.3.2
 [1.3.1]: https://github.com/kong/kubernetes-ingress-controller/compare/1.3.0...1.3.1
